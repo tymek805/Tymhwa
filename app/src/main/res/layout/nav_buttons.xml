@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:tools="http://schemas.android.com/tools"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        tools:ignore="HardcodedText" android:id="@+id/nav_buttons">
+
+    <Button
+            android:id="@+id/prevBtn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight=".40"
+            android:layout_marginRight="16dp"
+            android:layout_marginLeft="16dp"
+            android:text="PREVIOUS"/>
+    <Button
+            android:id="@+id/nextBtn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight=".60"
+            android:layout_marginRight="16dp"
+            android:layout_marginLeft="16dp"
+            android:text="NEXT"/>
+
+
+</LinearLayout>
