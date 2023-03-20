@@ -6,12 +6,9 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
 import android.view.Menu;
-import android.view.MenuInflater;
 import android.view.MenuItem;
-import android.widget.Button;
-import android.widget.ImageView;
-import android.widget.LinearLayout;
-import androidx.annotation.NonNull;
+import android.widget.*;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.view.GravityCompat;
@@ -21,21 +18,30 @@ import androidx.navigation.fragment.NavHostFragment;
 import androidx.navigation.ui.AppBarConfiguration;
 import androidx.navigation.ui.NavigationUI;
 import com.google.android.material.navigation.NavigationView;
+import com.tl.tymhwa.DataManagement.DatabaseManager;
+import com.tl.tymhwa.DataManagement.ImageProvider;
+import com.tl.tymhwa.DataManagement.Item;
+import com.tl.tymhwa.DataManagement.TextFileHandler;
+import com.tl.tymhwa.UI.GalleryFragment;
+import com.tl.tymhwa.UI.HomeFragment;
 
 import java.io.*;
-import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class MainActivity extends AppCompatActivity {
-
     private DrawerLayout drawerLayout;
-    private NavController navController;
     private ImageProvider imageProvider;
     private Menu menu;
+    private TextFileHandler textFileHandler;
+    private DatabaseManager dbManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        dbManager = new DatabaseManager(this);
+        textFileHandler = new TextFileHandler(this);
+        imageProvider = new ImageProvider(textFileHandler);
         setContentView(R.layout.activity_main);
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
@@ -46,7 +52,7 @@ public class MainActivity extends AppCompatActivity {
                 (NavHostFragment) getSupportFragmentManager()
                         .findFragmentById(R.id.fragment_container);
 
-        navController = navHostFragment.getNavController();
+        NavController navController = navHostFragment.getNavController();
         menu = navView.getMenu();
         preparingMenu();
 
@@ -64,71 +70,50 @@ public class MainActivity extends AppCompatActivity {
         addExistingMenuItems();
 
         menu.getItem(0).setOnMenuItemClickListener(menuItem -> {
-            itemManagement(menuItem, 0);
+            itemManagement(menuItem, 0, -1);
             return true;
         });
         menu.getItem(1).setOnMenuItemClickListener(menuItem -> {
-            itemManagement(menuItem, 1);
+            itemManagement(menuItem, 1, -1);
             return true;
         });
         menu.getItem(2).setOnMenuItemClickListener(menuItem -> {
-            itemManagement(menuItem, 2);
+            itemManagement(menuItem, 2, -1);
             return true;
         });
-
-        imageProvider = new ImageProvider(getApplicationContext());
-//        ImageProvider imageProvider = new ImageProvider(getApplicationContext());
-//        imageProvider.execute();
     }
     private void addExistingMenuItems(){
-       for (String name : getAllNames()) {
-           menu.add(R.id.allGroup, 30, Menu.NONE, name)
-                   .setIcon(R.drawable.nav_nothing_out)
-                   .setCheckable(true)
-                   .setOnMenuItemClickListener(menuItem -> {
-                    itemManagement(menuItem, 4);
-                    return true;
-           });
-       }
+        for (Item item : dbManager.readItems()){
+            menu.add(R.id.allGroup, 30, Menu.NONE, item.getTitle())
+                    .setIcon(R.drawable.nav_nothing_out)
+                    .setCheckable(true)
+                    .setOnMenuItemClickListener(menuItem -> {
+                        itemManagement(menuItem, 4, Math.max(item.getLastChapter(), 1));
+                        return true;
+                    });
+        }
     }
-    private ArrayList<String> getAllNames(){
-        ArrayList<String> allNames = new ArrayList<>();
-        try {
-            InputStream inputStream = getResources().openRawResource(R.raw.all_titles);
-            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-            String line = reader.readLine().split("&&&")[0];
-            while (line != null){
-                allNames.add(line);
-                line = reader.readLine();
-            }
-        } catch (Exception ignored) {}
 
-        return allNames;
-    }
-    private void itemManagement(MenuItem item, int group){
+    private void itemManagement(MenuItem item, int group, int chapter){
         getSupportActionBar().setTitle(item.getTitle());
         if (group == 0){
             HomeFragment newFragment = new HomeFragment();
             getSupportFragmentManager().beginTransaction()
                     .replace(R.id.fragment_container, newFragment, String.valueOf(item.getTitle()))
                     .commit();
-        } else if (group == 1){
-            HomeFragment newFragment = new HomeFragment();
-            getSupportFragmentManager().beginTransaction()
-                    .replace(R.id.fragment_container, newFragment, String.valueOf(item.getTitle()))
-                    .commit();
-        }else if (group == 2){
+        } else if (group == 1){showAddNavigationItemDialog();
+        } else if (group == 2){
             GalleryFragment newFragment = new GalleryFragment();
             getSupportFragmentManager().beginTransaction()
                     .replace(R.id.fragment_container, newFragment, String.valueOf(item.getTitle()))
                     .commit();
-        }else if (group == 4){
+        } else if (group == 4){
             GalleryFragment newFragment = new GalleryFragment();
             getSupportFragmentManager().beginTransaction()
                     .replace(R.id.fragment_container, newFragment, String.valueOf(item.getTitle()))
                     .commitNow();
 
-            adjustingResources(String.valueOf(item.getTitle()), 1);
+            adjustingResources(item.getTitle().toString(), chapter);
         }
         drawerLayout.closeDrawer(GravityCompat.START);
     }
@@ -162,10 +147,10 @@ public class MainActivity extends AppCompatActivity {
         }
         long endTime = System.currentTimeMillis();
         Log.i("TIME", "Elapsed time: " + (endTime - startTime) + " milliseconds");
-        preparingButtons(title, chapter);
+        preparingNavButtons(title, chapter);
     }
 
-    private void preparingButtons(String title, int chapter){
+    private void preparingNavButtons(String title, int chapter){
         int[] id = {R.id.nextBtnTop, R.id.nextBtnBot, R.id.prevBtnTop, R.id.prevBtnBot};
         File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM) + "/Tymhwa/" + title);
 
@@ -174,19 +159,18 @@ public class MainActivity extends AppCompatActivity {
                 Button nextBtn = findViewById(id[i]);
                 nextBtn.setOnClickListener(view -> {
                     if (dir.listFiles().length > chapter) {
-                        Log.wtf("BUTTON", "NEXT");
                         GalleryFragment newFragment = new GalleryFragment();
                         getSupportFragmentManager().beginTransaction()
                                 .replace(R.id.fragment_container, newFragment, title)
                                 .commitNow();
 
                         adjustingResources(title, chapter + 1);
+                        textFileHandler.updateChapter(title, chapter + 1);
                     }
                 });
             } else{
                 Button prevBtn = findViewById(id[i]);
                 prevBtn.setOnClickListener(view -> {
-                    Log.wtf("BUTTON", "PREV");
                     if (chapter - 1 > 0){
                         GalleryFragment newFragment = new GalleryFragment();
                         getSupportFragmentManager().beginTransaction()
@@ -200,6 +184,46 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void showAddNavigationItemDialog() {
+        final EditText titleInput = new EditText(this);
+        final EditText linkInput = new EditText(this);
+        final EditText chapterInput = new EditText(this);
+
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        layoutParams.setMargins(32, 16, 32, 16);
+
+        titleInput.setLayoutParams(layoutParams);
+        titleInput.setHint("Title");
+        linkInput.setLayoutParams(layoutParams);
+        linkInput.setHint("Link");
+        chapterInput.setLayoutParams(layoutParams);
+        chapterInput.setHint("Chapter");
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.addView(titleInput);
+        layout.addView(linkInput);
+        layout.addView(chapterInput);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Add Item")
+                .setMessage("Enter the title, link and optionally last chapter read.")
+                .setView(layout)
+                .setPositiveButton("Add", (dialog, which) -> {
+                    String title = titleInput.getText().toString();
+                    String link = linkInput.getText().toString();
+                    String lastChapterRead = chapterInput.getText().toString();
+                    if (lastChapterRead.equals("")) lastChapterRead = "0";
+                    String joinedData = title + "&&&" + link + "&&&" + lastChapterRead;
+                    textFileHandler.updateFile(joinedData);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
     @Override
     public void onBackPressed() {
         if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
@@ -208,13 +232,11 @@ public class MainActivity extends AppCompatActivity {
             super.onBackPressed();
         }
     }
-
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.nav_settings, menu);
         menu.getItem(0).setOnMenuItemClickListener(menuItem -> {
             imageProvider.execute();
-//            imageProvider.cancel();
             return true;
         });
         return super.onCreateOptionsMenu(menu);

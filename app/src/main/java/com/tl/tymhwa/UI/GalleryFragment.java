@@ -1,4 +1,4 @@
-package com.tl.tymhwa;
+package com.tl.tymhwa.UI;
 
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -7,6 +7,7 @@ import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import androidx.fragment.app.Fragment;
+import com.tl.tymhwa.R;
 
 public class GalleryFragment extends Fragment {
     private TextView textView;
